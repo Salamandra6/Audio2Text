@@ -4,7 +4,9 @@ import queue
 import threading
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
 
 from .exporters import export_result
 from .transcriber import AudioTranscriber, TranscriptionCancelled
@@ -18,22 +20,40 @@ LANGUAGES = {
     "Francés": "fr", "Alemán": "de", "Italiano": "it",
 }
 
-BASE_COLOR = "#00224c"
-TEXT_COLOR = "#ffffff"
-ACCENT_COLOR = "#ffd100"
-CONTROL_COLOR = "#0b315f"
-DISABLED_COLOR = "#70839a"
+BASE = "#00224c"
+CARD = "#082f5c"
+CONTROL = "#0d3b6e"
+HOVER = "#154b82"
+WHITE = "#ffffff"
+MUTED = "#b8cae0"
+YELLOW = "#ffd100"
+YELLOW_HOVER = "#ffe04d"
+BORDER = "#1d5288"
+DISABLED = "#6b829d"
+SUCCESS = "#65d39a"
+ERROR = "#ff7d8a"
+STATUS_COLORS = {
+    "Pendiente": ("#153f6c", MUTED),
+    "Procesando": (YELLOW, BASE),
+    "Completado": (SUCCESS, BASE),
+    "Error": (ERROR, BASE),
+    "Cancelado": (DISABLED, WHITE),
+}
+
+ctk.set_appearance_mode("dark")
 
 
-class Audio2TextApp(tk.Tk):
+class Audio2TextApp(ctk.CTk):
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(fg_color=BASE)
         self.title("Audio2Text")
-        self.geometry("940x700")
-        self.minsize(820, 600)
-        self.configure(background=BASE_COLOR)
+        self.geometry("1180x760")
+        self.minsize(1000, 680)
 
         self.files: list[Path] = []
+        self.file_statuses: list[str] = []
+        self.file_selected: list[tk.BooleanVar] = []
+        self.file_rows: list[dict] = []
         self.events: queue.Queue[tuple] = queue.Queue()
         self.cancel_event = threading.Event()
         self.worker: threading.Thread | None = None
@@ -49,350 +69,276 @@ class Audio2TextApp(tk.Tk):
             "vtt": tk.BooleanVar(value=False),
             "json": tk.BooleanVar(value=False),
         }
-        self.current_progress = tk.DoubleVar(value=0)
-        self.batch_progress = tk.DoubleVar(value=0)
-        self.status = tk.StringVar(value="Agrega archivos o una carpeta para comenzar.")
 
-        self._configure_styles()
         self._build_ui()
+        self._render_file_rows()
         self.after(100, self._drain_events)
         self.protocol("WM_DELETE_WINDOW", self._close)
 
-    def _configure_styles(self) -> None:
-        style = ttk.Style(self)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
+    @staticmethod
+    def _font(size: int, bold: bool = False) -> ctk.CTkFont:
+        return ctk.CTkFont(family="Segoe UI", size=size, weight="bold" if bold else "normal")
 
-        self.option_add("*TCombobox*Listbox.background", CONTROL_COLOR)
-        self.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
-        self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
-        self.option_add("*TCombobox*Listbox.selectForeground", BASE_COLOR)
-        self.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
-
-        style.configure(".", font=("Segoe UI", 10))
-        style.configure("TFrame", background=BASE_COLOR)
-        style.configure("TLabel", background=BASE_COLOR, foreground=TEXT_COLOR)
-        style.configure(
-            "Title.TLabel",
-            background=BASE_COLOR,
-            foreground=ACCENT_COLOR,
-            font=("Segoe UI", 22, "bold"),
-        )
-        style.configure(
-            "Subtitle.TLabel",
-            background=BASE_COLOR,
-            foreground=TEXT_COLOR,
-            font=("Segoe UI", 10),
+    @staticmethod
+    def _card(parent) -> ctk.CTkFrame:
+        return ctk.CTkFrame(
+            parent, fg_color=CARD, corner_radius=22, border_width=1, border_color=BORDER
         )
 
-        style.configure(
-            "TLabelframe",
-            background=BASE_COLOR,
-            foreground=TEXT_COLOR,
-            bordercolor=ACCENT_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-            borderwidth=1,
-            relief="solid",
+    def _title(self, parent, title: str, subtitle: str, row: int = 0) -> None:
+        ctk.CTkLabel(parent, text=title, text_color=WHITE, anchor="w", font=self._font(17, True)).grid(
+            row=row, column=0, columnspan=2, sticky="ew", padx=18, pady=(17, 0)
         )
-        style.configure(
-            "TLabelframe.Label",
-            background=BASE_COLOR,
-            foreground=ACCENT_COLOR,
-            font=("Segoe UI", 10, "bold"),
+        ctk.CTkLabel(parent, text=subtitle, text_color=MUTED, anchor="w", font=self._font(10)).grid(
+            row=row + 1, column=0, columnspan=2, sticky="ew", padx=18, pady=(3, 12)
         )
 
-        style.configure(
-            "TButton",
-            background=BASE_COLOR,
-            foreground=TEXT_COLOR,
-            bordercolor=ACCENT_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-            padding=(10, 6),
-            font=("Segoe UI", 9, "bold"),
+    def _button(self, parent, text, command, kind="secondary", **grid_options):
+        styles = {
+            "primary": dict(fg_color=YELLOW, hover_color=YELLOW_HOVER, text_color=BASE, border_width=0),
+            "secondary": dict(fg_color=CONTROL, hover_color=HOVER, text_color=WHITE, border_width=0),
+            "ghost": dict(fg_color="transparent", hover_color=HOVER, text_color=WHITE, border_width=1),
+        }
+        button = ctk.CTkButton(
+            parent, text=text, command=command, corner_radius=12, height=38,
+            border_color=BORDER, font=self._font(11, True), **styles[kind]
         )
-        style.map(
-            "TButton",
-            background=[
-                ("disabled", CONTROL_COLOR),
-                ("pressed", ACCENT_COLOR),
-                ("active", ACCENT_COLOR),
-            ],
-            foreground=[
-                ("disabled", DISABLED_COLOR),
-                ("pressed", BASE_COLOR),
-                ("active", BASE_COLOR),
-            ],
-            bordercolor=[
-                ("disabled", DISABLED_COLOR),
-                ("focus", ACCENT_COLOR),
-                ("active", ACCENT_COLOR),
-            ],
-        )
-
-        style.configure(
-            "Accent.TButton",
-            background=ACCENT_COLOR,
-            foreground=BASE_COLOR,
-            bordercolor=ACCENT_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-            padding=(14, 8),
-            font=("Segoe UI", 10, "bold"),
-        )
-        style.map(
-            "Accent.TButton",
-            background=[
-                ("disabled", CONTROL_COLOR),
-                ("pressed", TEXT_COLOR),
-                ("active", TEXT_COLOR),
-            ],
-            foreground=[
-                ("disabled", DISABLED_COLOR),
-                ("pressed", BASE_COLOR),
-                ("active", BASE_COLOR),
-            ],
-        )
-
-        style.configure(
-            "TEntry",
-            fieldbackground=CONTROL_COLOR,
-            foreground=TEXT_COLOR,
-            insertcolor=TEXT_COLOR,
-            bordercolor=ACCENT_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-            padding=5,
-        )
-        style.map(
-            "TEntry",
-            fieldbackground=[("disabled", CONTROL_COLOR)],
-            foreground=[("disabled", DISABLED_COLOR)],
-        )
-
-        style.configure(
-            "TCombobox",
-            fieldbackground=CONTROL_COLOR,
-            background=CONTROL_COLOR,
-            foreground=TEXT_COLOR,
-            arrowcolor=ACCENT_COLOR,
-            bordercolor=ACCENT_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-            padding=4,
-        )
-        style.map(
-            "TCombobox",
-            fieldbackground=[
-                ("readonly", CONTROL_COLOR),
-                ("disabled", CONTROL_COLOR),
-            ],
-            foreground=[
-                ("readonly", TEXT_COLOR),
-                ("disabled", DISABLED_COLOR),
-            ],
-            selectbackground=[("readonly", ACCENT_COLOR)],
-            selectforeground=[("readonly", BASE_COLOR)],
-            arrowcolor=[
-                ("disabled", DISABLED_COLOR),
-                ("readonly", ACCENT_COLOR),
-            ],
-        )
-
-        style.configure(
-            "TCheckbutton",
-            background=BASE_COLOR,
-            foreground=TEXT_COLOR,
-            indicatorbackground=CONTROL_COLOR,
-            indicatorforeground=BASE_COLOR,
-            focuscolor=ACCENT_COLOR,
-        )
-        style.map(
-            "TCheckbutton",
-            background=[("active", BASE_COLOR)],
-            foreground=[("active", ACCENT_COLOR)],
-            indicatorbackground=[
-                ("selected", ACCENT_COLOR),
-                ("!selected", CONTROL_COLOR),
-            ],
-        )
-
-        style.configure(
-            "Accent.Horizontal.TProgressbar",
-            troughcolor=CONTROL_COLOR,
-            background=ACCENT_COLOR,
-            bordercolor=BASE_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-        )
-        style.configure(
-            "Vertical.TScrollbar",
-            background=ACCENT_COLOR,
-            troughcolor=CONTROL_COLOR,
-            arrowcolor=BASE_COLOR,
-            bordercolor=BASE_COLOR,
-            lightcolor=ACCENT_COLOR,
-            darkcolor=ACCENT_COLOR,
-        )
+        button.grid(**grid_options)
+        return button
 
     def _build_ui(self) -> None:
-        root = ttk.Frame(self, padding=14)
-        root.pack(fill="both", expand=True)
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(2, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        ttk.Label(root, text="Audio2Text", style="Title.TLabel").grid(
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 18))
+        header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(header, text="AUDIO INTELLIGENCE", text_color=YELLOW, font=self._font(11, True)).grid(
             row=0, column=0, sticky="w"
         )
-        ttk.Label(
-            root,
-            text="Transcripción local de audio por lotes",
-            style="Subtitle.TLabel",
-        ).grid(row=0, column=0, sticky="e")
-
-        settings = ttk.LabelFrame(root, text="Configuración", padding=10)
-        settings.grid(row=1, column=0, sticky="ew", pady=10)
-        for col in range(8):
-            settings.columnconfigure(col, weight=1 if col % 2 else 0)
-
-        ttk.Label(settings, text="Modelo").grid(row=0, column=0, sticky="w")
-        self.model_box = ttk.Combobox(
-            settings, textvariable=self.model,
-            values=("tiny", "base", "small", "medium", "large-v3", "turbo"),
-            state="readonly", width=12,
+        ctk.CTkLabel(header, text="Audio2Text", text_color=WHITE, font=self._font(32, True)).grid(
+            row=1, column=0, sticky="w", pady=(2, 0)
         )
-        self.model_box.grid(row=0, column=1, sticky="ew", padx=(6, 14))
+        ctk.CTkLabel(
+            header, text="Transcripción local por lotes, rápida, privada y simple.",
+            text_color=MUTED, font=self._font(13)
+        ).grid(row=2, column=0, sticky="w", pady=(3, 0))
+        ctk.CTkLabel(
+            header, text="  Procesamiento local  ", fg_color=CONTROL, text_color=WHITE,
+            corner_radius=16, height=32, font=self._font(11, True)
+        ).grid(row=1, column=1, rowspan=2, sticky="e")
 
-        ttk.Label(settings, text="Idioma").grid(row=0, column=2, sticky="w")
-        self.language_box = ttk.Combobox(
-            settings, textvariable=self.language, values=tuple(LANGUAGES),
-            state="readonly", width=12,
+        content = ctk.CTkFrame(self, fg_color="transparent")
+        content.grid(row=1, column=0, sticky="nsew", padx=28, pady=(0, 28))
+        content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(1, minsize=352)
+        content.grid_rowconfigure(0, weight=1)
+        self._build_queue(content)
+        self._build_sidebar(content)
+
+    def _build_queue(self, parent) -> None:
+        card = self._card(parent)
+        card.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_rowconfigure(2, weight=1)
+
+        head = ctk.CTkFrame(card, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 12))
+        head.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(head, text="Cola de archivos", text_color=WHITE, font=self._font(19, True)).grid(
+            row=0, column=0, sticky="w"
         )
-        self.language_box.grid(row=0, column=3, sticky="ew", padx=(6, 14))
-
-        ttk.Label(settings, text="Dispositivo").grid(row=0, column=4, sticky="w")
-        self.device_box = ttk.Combobox(
-            settings, textvariable=self.device, values=("auto", "cpu", "cuda"),
-            state="readonly", width=9,
+        ctk.CTkLabel(
+            head, text="Selecciona audios individuales o una carpeta completa.",
+            text_color=MUTED, font=self._font(11)
+        ).grid(row=1, column=0, sticky="w", pady=(3, 0))
+        self.file_count_label = ctk.CTkLabel(
+            head, text="  0 archivos  ", fg_color=CONTROL, text_color=MUTED,
+            corner_radius=14, height=28, font=self._font(10, True)
         )
-        self.device_box.grid(row=0, column=5, sticky="ew", padx=(6, 14))
+        self.file_count_label.grid(row=0, column=1, rowspan=2, sticky="e")
 
-        ttk.Label(settings, text="Precisión").grid(row=0, column=6, sticky="w")
-        self.compute_box = ttk.Combobox(
-            settings, textvariable=self.compute,
-            values=("auto", "int8", "float16", "float32"), state="readonly", width=10,
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 14))
+        for column in range(4):
+            actions.grid_columnconfigure(column, weight=1)
+        self.queue_buttons = [
+            self._button(actions, "Agregar archivos", self._add_files, "primary", row=0, column=0, sticky="ew", padx=(0, 5)),
+            self._button(actions, "Agregar carpeta", self._add_folder, "secondary", row=0, column=1, sticky="ew", padx=5),
+            self._button(actions, "Quitar seleccionados", self._remove_selected, "ghost", row=0, column=2, sticky="ew", padx=5),
+            self._button(actions, "Limpiar", self._clear, "ghost", row=0, column=3, sticky="ew", padx=(5, 0)),
+        ]
+
+        self.file_scroll = ctk.CTkScrollableFrame(
+            card, fg_color=BASE, corner_radius=18, border_width=1, border_color=BORDER,
+            scrollbar_button_color=HOVER, scrollbar_button_hover_color=YELLOW
         )
-        self.compute_box.grid(row=0, column=7, sticky="ew", padx=(6, 0))
+        self.file_scroll.grid(row=2, column=0, sticky="nsew", padx=22, pady=(0, 22))
+        self.file_scroll.grid_columnconfigure(0, weight=1)
 
-        format_frame = ttk.Frame(settings)
-        format_frame.grid(row=1, column=0, columnspan=8, sticky="w", pady=(10, 0))
-        ttk.Label(format_frame, text="Exportar:").pack(side="left")
+    def _build_sidebar(self, parent) -> None:
+        sidebar = ctk.CTkFrame(parent, fg_color="transparent")
+        sidebar.grid(row=0, column=1, sticky="nsew")
+        sidebar.grid_columnconfigure(0, weight=1)
+
+        settings = self._card(sidebar)
+        settings.grid(row=0, column=0, sticky="ew")
+        settings.grid_columnconfigure((0, 1), weight=1)
+        self._title(settings, "Configuración", "Ajusta calidad, idioma y rendimiento.")
+        self.model_box = self._option(settings, "Modelo", self.model, ("tiny", "base", "small", "medium", "large-v3", "turbo"), 2, 0)
+        self.language_box = self._option(settings, "Idioma", self.language, tuple(LANGUAGES), 2, 1)
+        self.device_box = self._option(settings, "Dispositivo", self.device, ("auto", "cpu", "cuda"), 4, 0)
+        self.compute_box = self._option(settings, "Precisión", self.compute, ("auto", "int8", "float16", "float32"), 4, 1)
+
+        ctk.CTkLabel(settings, text="Formatos de salida", text_color=WHITE, anchor="w", font=self._font(11, True)).grid(
+            row=6, column=0, columnspan=2, sticky="ew", padx=18, pady=(14, 8)
+        )
+        switches = ctk.CTkFrame(settings, fg_color="transparent")
+        switches.grid(row=7, column=0, columnspan=2, sticky="ew", padx=18, pady=(0, 18))
+        self.format_switches = []
         for name, variable in self.formats.items():
-            ttk.Checkbutton(
-                format_frame, text=name.upper(), variable=variable
-            ).pack(side="left", padx=(10, 0))
+            switch = ctk.CTkSwitch(
+                switches, text=name.upper(), variable=variable, onvalue=True, offvalue=False,
+                progress_color=YELLOW, button_color=WHITE, button_hover_color=WHITE,
+                fg_color=CONTROL, text_color=MUTED, font=self._font(10, True)
+            )
+            switch.pack(side="left", padx=(0, 10))
+            self.format_switches.append(switch)
 
-        queue_frame = ttk.LabelFrame(root, text="Cola de archivos", padding=10)
-        queue_frame.grid(row=2, column=0, sticky="nsew")
-        queue_frame.columnconfigure(0, weight=1)
-        queue_frame.rowconfigure(1, weight=1)
-
-        buttons = ttk.Frame(queue_frame)
-        buttons.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        self.queue_buttons: list[ttk.Button] = []
-        for text, command in (
-            ("Agregar archivos", self._add_files),
-            ("Agregar carpeta", self._add_folder),
-            ("Quitar seleccionados", self._remove_selected),
-            ("Limpiar", self._clear),
-        ):
-            button = ttk.Button(buttons, text=text, command=command)
-            button.pack(side="left", padx=(0, 8))
-            self.queue_buttons.append(button)
-
-        self.file_list = tk.Listbox(
-            queue_frame,
-            selectmode=tk.EXTENDED,
-            font=("Consolas", 10),
-            background=BASE_COLOR,
-            foreground=TEXT_COLOR,
-            selectbackground=ACCENT_COLOR,
-            selectforeground=BASE_COLOR,
-            highlightbackground=ACCENT_COLOR,
-            highlightcolor=ACCENT_COLOR,
-            highlightthickness=1,
-            borderwidth=0,
-            relief="flat",
-            activestyle="none",
+        destination = self._card(sidebar)
+        destination.grid(row=1, column=0, sticky="ew", pady=(14, 0))
+        destination.grid_columnconfigure(0, weight=1)
+        self._title(destination, "Destino", "Carpeta donde se guardarán los resultados.")
+        self.output_entry = ctk.CTkEntry(
+            destination, textvariable=self.output_dir, fg_color=CONTROL, border_color=BORDER,
+            border_width=1, corner_radius=12, height=40, text_color=WHITE, font=self._font(11)
         )
-        self.file_list.grid(row=1, column=0, sticky="nsew")
-        scroll = ttk.Scrollbar(queue_frame, command=self.file_list.yview)
-        scroll.grid(row=1, column=1, sticky="ns")
-        self.file_list.configure(yscrollcommand=scroll.set)
-
-        destination = ttk.Frame(root)
-        destination.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        destination.columnconfigure(1, weight=1)
-        ttk.Label(destination, text="Guardar en:").grid(row=0, column=0, padx=(0, 8))
-        self.output_entry = ttk.Entry(destination, textvariable=self.output_dir)
-        self.output_entry.grid(row=0, column=1, sticky="ew")
-        self.output_button = ttk.Button(
-            destination, text="Elegir carpeta", command=self._choose_output
-        )
-        self.output_button.grid(row=0, column=2, padx=(8, 0))
-
-        progress = ttk.LabelFrame(root, text="Progreso", padding=10)
-        progress.grid(row=4, column=0, sticky="ew", pady=(10, 0))
-        progress.columnconfigure(1, weight=1)
-        ttk.Label(progress, text="Archivo actual").grid(
-            row=0, column=0, sticky="w", padx=(0, 8)
-        )
-        ttk.Progressbar(
-            progress,
-            variable=self.current_progress,
-            maximum=100,
-            style="Accent.Horizontal.TProgressbar",
-        ).grid(row=0, column=1, sticky="ew")
-        ttk.Label(progress, text="Lote completo").grid(
-            row=1, column=0, sticky="w", padx=(0, 8), pady=(6, 0)
-        )
-        ttk.Progressbar(
-            progress,
-            variable=self.batch_progress,
-            maximum=100,
-            style="Accent.Horizontal.TProgressbar",
-        ).grid(row=1, column=1, sticky="ew", pady=(6, 0))
-        ttk.Label(progress, textvariable=self.status).grid(
-            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0)
+        self.output_entry.grid(row=2, column=0, sticky="ew", padx=18, pady=(2, 10))
+        self.output_button = self._button(
+            destination, "Elegir carpeta", self._choose_output, "secondary",
+            row=3, column=0, sticky="ew", padx=18, pady=(0, 18)
         )
 
-        actions = ttk.Frame(root)
-        actions.grid(row=5, column=0, sticky="e", pady=(10, 0))
-        self.start_button = ttk.Button(
-            actions,
-            text="Iniciar transcripción",
-            command=self._start,
-            style="Accent.TButton",
+        progress = self._card(sidebar)
+        progress.grid(row=2, column=0, sticky="ew", pady=(14, 0))
+        progress.grid_columnconfigure(0, weight=1)
+        self._title(progress, "Progreso", "Seguimiento del archivo actual y del lote.")
+        ctk.CTkLabel(progress, text="Archivo actual", text_color=MUTED, anchor="w", font=self._font(10)).grid(
+            row=2, column=0, sticky="ew", padx=18
         )
-        self.start_button.pack(side="left")
-        self.cancel_button = ttk.Button(
-            actions, text="Cancelar", command=self._cancel, state="disabled"
+        self.current_progress = self._progress(progress, 3)
+        ctk.CTkLabel(progress, text="Lote completo", text_color=MUTED, anchor="w", font=self._font(10)).grid(
+            row=4, column=0, sticky="ew", padx=18
         )
-        self.cancel_button.pack(side="left", padx=(8, 0))
+        self.batch_progress = self._progress(progress, 5)
+        self.status_label = ctk.CTkLabel(
+            progress, text="Agrega archivos o una carpeta para comenzar.", text_color=MUTED,
+            justify="left", anchor="w", wraplength=300, font=self._font(10)
+        )
+        self.status_label.grid(row=6, column=0, sticky="ew", padx=18, pady=(0, 18))
+
+        buttons = ctk.CTkFrame(sidebar, fg_color="transparent")
+        buttons.grid(row=3, column=0, sticky="ew", pady=(14, 0))
+        buttons.grid_columnconfigure((0, 1), weight=1)
+        self.start_button = ctk.CTkButton(
+            buttons, text="Iniciar transcripción", command=self._start, fg_color=YELLOW,
+            hover_color=YELLOW_HOVER, text_color=BASE, corner_radius=14, height=46,
+            font=self._font(12, True)
+        )
+        self.start_button.grid(row=0, column=0, sticky="ew", padx=(0, 7))
+        self.cancel_button = ctk.CTkButton(
+            buttons, text="Cancelar", command=self._cancel, state="disabled",
+            fg_color="transparent", hover_color=HOVER, text_color=YELLOW,
+            border_color=YELLOW, border_width=1, corner_radius=14, height=46,
+            font=self._font(12, True)
+        )
+        self.cancel_button.grid(row=0, column=1, sticky="ew", padx=(7, 0))
+
+    def _option(self, parent, label, variable, values, row, column):
+        padx = (18, 7) if column == 0 else (7, 18)
+        ctk.CTkLabel(parent, text=label, text_color=MUTED, anchor="w", font=self._font(10)).grid(
+            row=row, column=column, sticky="ew", padx=padx
+        )
+        option = ctk.CTkOptionMenu(
+            parent, variable=variable, values=list(values), fg_color=CONTROL,
+            button_color=HOVER, button_hover_color=YELLOW, dropdown_fg_color=CONTROL,
+            dropdown_hover_color=HOVER, dropdown_text_color=WHITE, text_color=WHITE,
+            corner_radius=12, height=38, anchor="w", font=self._font(11),
+            dropdown_font=self._font(11)
+        )
+        option.grid(row=row + 1, column=column, sticky="ew", padx=padx, pady=(5, 0))
+        return option
+
+    def _progress(self, parent, row):
+        bar = ctk.CTkProgressBar(
+            parent, fg_color=CONTROL, progress_color=YELLOW, corner_radius=8, height=9
+        )
+        bar.grid(row=row, column=0, sticky="ew", padx=18, pady=(6, 12))
+        bar.set(0)
+        return bar
+
+    def _render_file_rows(self) -> None:
+        for child in self.file_scroll.winfo_children():
+            child.destroy()
+        self.file_rows.clear()
+        total = len(self.files)
+        self.file_count_label.configure(text=f"  {total} archivo{'s' if total != 1 else ''}  ")
+
+        if not self.files:
+            ctk.CTkLabel(
+                self.file_scroll, text="Sin archivos todavía\nAgrega uno o varios audios para comenzar.",
+                text_color=MUTED, font=self._font(13), justify="center"
+            ).grid(row=0, column=0, sticky="nsew", pady=90)
+            return
+
+        for index, path in enumerate(self.files):
+            row = ctk.CTkFrame(
+                self.file_scroll, fg_color=CARD, corner_radius=15,
+                border_width=1, border_color=BORDER
+            )
+            row.grid(row=index, column=0, sticky="ew", pady=(0, 9), padx=2)
+            row.grid_columnconfigure(1, weight=1)
+            checkbox = ctk.CTkCheckBox(
+                row, text="", variable=self.file_selected[index], width=26,
+                checkbox_width=20, checkbox_height=20, corner_radius=6,
+                fg_color=YELLOW, hover_color=YELLOW_HOVER,
+                border_color=BORDER, checkmark_color=BASE
+            )
+            checkbox.grid(row=0, column=0, rowspan=2, padx=(14, 8), pady=14)
+            ctk.CTkLabel(row, text=path.name, text_color=WHITE, anchor="w", font=self._font(12, True)).grid(
+                row=0, column=1, sticky="ew", pady=(12, 0)
+            )
+            ctk.CTkLabel(row, text=str(path.parent), text_color=MUTED, anchor="w", font=self._font(9)).grid(
+                row=1, column=1, sticky="ew", pady=(0, 12)
+            )
+            bg, fg = STATUS_COLORS[self.file_statuses[index]]
+            badge = ctk.CTkLabel(
+                row, text=f"  {self.file_statuses[index]}  ", fg_color=bg,
+                text_color=fg, corner_radius=12, height=26, font=self._font(9, True)
+            )
+            badge.grid(row=0, column=2, rowspan=2, padx=14)
+            self.file_rows.append({"checkbox": checkbox, "status": badge})
+
+    def _set_status(self, text: str) -> None:
+        self.status_label.configure(text=text)
 
     def _add_paths(self, paths: list[Path]) -> None:
         existing = {str(path.resolve()).lower() for path in self.files}
+        added = 0
         for path in sorted(paths, key=lambda item: item.name.lower()):
             key = str(path.resolve()).lower()
             if key in existing or path.suffix.lower() not in AUDIO_EXTENSIONS:
                 continue
             self.files.append(path)
-            self.file_list.insert(tk.END, f"[Pendiente] {path}")
+            self.file_statuses.append("Pendiente")
+            self.file_selected.append(tk.BooleanVar(value=False))
             existing.add(key)
-        self.status.set(f"{len(self.files)} archivo(s) en la cola.")
+            added += 1
+        self._render_file_rows()
+        self._set_status(
+            f"{len(self.files)} archivo(s) en la cola."
+            if added else "No se encontraron archivos nuevos compatibles."
+        )
 
     def _add_files(self) -> None:
         paths = filedialog.askopenfilenames(
@@ -407,15 +353,23 @@ class Audio2TextApp(tk.Tk):
             self._add_paths([path for path in Path(selected).rglob("*") if path.is_file()])
 
     def _remove_selected(self) -> None:
-        for index in reversed(self.file_list.curselection()):
-            self.file_list.delete(index)
+        indexes = [i for i, variable in enumerate(self.file_selected) if variable.get()]
+        if not indexes:
+            self._set_status("Marca uno o más archivos para quitarlos.")
+            return
+        for index in reversed(indexes):
             self.files.pop(index)
-        self.status.set(f"{len(self.files)} archivo(s) en la cola.")
+            self.file_statuses.pop(index)
+            self.file_selected.pop(index)
+        self._render_file_rows()
+        self._set_status(f"{len(self.files)} archivo(s) en la cola.")
 
     def _clear(self) -> None:
         self.files.clear()
-        self.file_list.delete(0, tk.END)
-        self.status.set("Cola vacía.")
+        self.file_statuses.clear()
+        self.file_selected.clear()
+        self._render_file_rows()
+        self._set_status("Cola vacía.")
 
     def _choose_output(self) -> None:
         selected = filedialog.askdirectory(title="Seleccionar carpeta de salida")
@@ -423,9 +377,12 @@ class Audio2TextApp(tk.Tk):
             self.output_dir.set(selected)
 
     def _set_file_status(self, index: int, state: str) -> None:
-        if 0 <= index < len(self.files):
-            self.file_list.delete(index)
-            self.file_list.insert(index, f"[{state}] {self.files[index]}")
+        if not 0 <= index < len(self.files):
+            return
+        self.file_statuses[index] = state
+        if index < len(self.file_rows):
+            bg, fg = STATUS_COLORS.get(state, (CONTROL, MUTED))
+            self.file_rows[index]["status"].configure(text=f"  {state}  ", fg_color=bg, text_color=fg)
 
     def _start(self) -> None:
         if not self.files:
@@ -435,7 +392,6 @@ class Audio2TextApp(tk.Tk):
         if not selected_formats:
             messagebox.showwarning("Sin formato", "Selecciona al menos un formato de salida.")
             return
-
         output = Path(self.output_dir.get()).expanduser()
         try:
             output.mkdir(parents=True, exist_ok=True)
@@ -449,7 +405,6 @@ class Audio2TextApp(tk.Tk):
         for index in range(len(self.files)):
             self._set_file_status(index, "Pendiente")
         self._set_running(True)
-
         options = {
             "files": list(self.files), "formats": selected_formats, "output": output,
             "model": self.model.get(), "language": LANGUAGES[self.language.get()],
@@ -475,17 +430,17 @@ class Audio2TextApp(tk.Tk):
                 break
             self.events.put(("file", index, "Procesando"))
             self.events.put(("status", f"Procesando {path.name} ({index + 1}/{total})"))
-            self.events.put(("current", 0))
+            self.events.put(("current", 0.0))
 
             def progress(value: float, preview: str) -> None:
-                self.events.put(("current", value * 100))
+                self.events.put(("current", value))
                 if preview:
                     self.events.put(("status", f"{path.name}: {preview[:100]}"))
 
             try:
                 result = transcriber.transcribe_file(
-                    path, language=options["language"],
-                    progress_callback=progress, cancel_event=self.cancel_event,
+                    path, language=options["language"], progress_callback=progress,
+                    cancel_event=self.cancel_event,
                 )
                 export_result(result, options["output"], options["formats"])
                 success += 1
@@ -497,7 +452,7 @@ class Audio2TextApp(tk.Tk):
                 errors += 1
                 self.events.put(("file", index, "Error"))
                 self.events.put(("status", f"Error en {path.name}: {exc}"))
-            self.events.put(("batch", ((index + 1) / total) * 100))
+            self.events.put(("batch", (index + 1) / total))
 
         self.events.put(("finished", success, errors, self.cancel_event.is_set(), options["output"]))
 
@@ -507,42 +462,48 @@ class Audio2TextApp(tk.Tk):
                 event = self.events.get_nowait()
                 kind = event[0]
                 if kind == "status":
-                    self.status.set(event[1])
+                    self._set_status(event[1])
                 elif kind == "file":
                     self._set_file_status(event[1], event[2])
                 elif kind == "current":
-                    self.current_progress.set(event[1])
+                    self.current_progress.set(max(0.0, min(1.0, event[1])))
                 elif kind == "batch":
-                    self.batch_progress.set(event[1])
+                    self.batch_progress.set(max(0.0, min(1.0, event[1])))
                 elif kind == "fatal":
                     self._set_running(False)
-                    self.status.set(event[1])
+                    self._set_status(event[1])
                     messagebox.showerror("Error", event[1])
                 elif kind == "finished":
                     _, success, errors, cancelled, output = event
                     self._set_running(False)
                     word = "cancelado" if cancelled else "terminado"
-                    self.status.set(f"Proceso {word}. Completados: {success}; errores: {errors}.")
+                    self._set_status(f"Proceso {word}. Completados: {success}; errores: {errors}.")
                     if not cancelled:
-                        messagebox.showinfo("Proceso terminado", f"Completados: {success}\nErrores: {errors}\n\nResultados en:\n{output}")
+                        messagebox.showinfo(
+                            "Proceso terminado",
+                            f"Completados: {success}\nErrores: {errors}\n\nResultados en:\n{output}",
+                        )
         except queue.Empty:
             pass
         self.after(100, self._drain_events)
 
     def _set_running(self, running: bool) -> None:
-        normal = "disabled" if running else "normal"
-        combo = "disabled" if running else "readonly"
+        state = "disabled" if running else "normal"
         for button in self.queue_buttons + [self.output_button]:
-            button.configure(state=normal)
-        self.output_entry.configure(state=normal)
+            button.configure(state=state)
+        for row in self.file_rows:
+            row["checkbox"].configure(state=state)
+        for switch in self.format_switches:
+            switch.configure(state=state)
+        self.output_entry.configure(state=state)
         for box in (self.model_box, self.language_box, self.device_box, self.compute_box):
-            box.configure(state=combo)
+            box.configure(state=state)
         self.start_button.configure(state="disabled" if running else "normal")
         self.cancel_button.configure(state="normal" if running else "disabled")
 
     def _cancel(self) -> None:
         self.cancel_event.set()
-        self.status.set("Cancelando al finalizar el segmento actual…")
+        self._set_status("Cancelando al finalizar el segmento actual…")
         self.cancel_button.configure(state="disabled")
 
     def _close(self) -> None:
