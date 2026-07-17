@@ -18,6 +18,12 @@ LANGUAGES = {
     "Francés": "fr", "Alemán": "de", "Italiano": "it",
 }
 
+BASE_COLOR = "#00224c"
+TEXT_COLOR = "#ffffff"
+ACCENT_COLOR = "#ffd100"
+CONTROL_COLOR = "#0b315f"
+DISABLED_COLOR = "#70839a"
+
 
 class Audio2TextApp(tk.Tk):
     def __init__(self) -> None:
@@ -25,6 +31,7 @@ class Audio2TextApp(tk.Tk):
         self.title("Audio2Text")
         self.geometry("940x700")
         self.minsize(820, 600)
+        self.configure(background=BASE_COLOR)
 
         self.files: list[Path] = []
         self.events: queue.Queue[tuple] = queue.Queue()
@@ -46,9 +53,190 @@ class Audio2TextApp(tk.Tk):
         self.batch_progress = tk.DoubleVar(value=0)
         self.status = tk.StringVar(value="Agrega archivos o una carpeta para comenzar.")
 
+        self._configure_styles()
         self._build_ui()
         self.after(100, self._drain_events)
         self.protocol("WM_DELETE_WINDOW", self._close)
+
+    def _configure_styles(self) -> None:
+        style = ttk.Style(self)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        self.option_add("*TCombobox*Listbox.background", CONTROL_COLOR)
+        self.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
+        self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_COLOR)
+        self.option_add("*TCombobox*Listbox.selectForeground", BASE_COLOR)
+        self.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
+
+        style.configure(".", font=("Segoe UI", 10))
+        style.configure("TFrame", background=BASE_COLOR)
+        style.configure("TLabel", background=BASE_COLOR, foreground=TEXT_COLOR)
+        style.configure(
+            "Title.TLabel",
+            background=BASE_COLOR,
+            foreground=ACCENT_COLOR,
+            font=("Segoe UI", 22, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background=BASE_COLOR,
+            foreground=TEXT_COLOR,
+            font=("Segoe UI", 10),
+        )
+
+        style.configure(
+            "TLabelframe",
+            background=BASE_COLOR,
+            foreground=TEXT_COLOR,
+            bordercolor=ACCENT_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+            borderwidth=1,
+            relief="solid",
+        )
+        style.configure(
+            "TLabelframe.Label",
+            background=BASE_COLOR,
+            foreground=ACCENT_COLOR,
+            font=("Segoe UI", 10, "bold"),
+        )
+
+        style.configure(
+            "TButton",
+            background=BASE_COLOR,
+            foreground=TEXT_COLOR,
+            bordercolor=ACCENT_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+            padding=(10, 6),
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.map(
+            "TButton",
+            background=[
+                ("disabled", CONTROL_COLOR),
+                ("pressed", ACCENT_COLOR),
+                ("active", ACCENT_COLOR),
+            ],
+            foreground=[
+                ("disabled", DISABLED_COLOR),
+                ("pressed", BASE_COLOR),
+                ("active", BASE_COLOR),
+            ],
+            bordercolor=[
+                ("disabled", DISABLED_COLOR),
+                ("focus", ACCENT_COLOR),
+                ("active", ACCENT_COLOR),
+            ],
+        )
+
+        style.configure(
+            "Accent.TButton",
+            background=ACCENT_COLOR,
+            foreground=BASE_COLOR,
+            bordercolor=ACCENT_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+            padding=(14, 8),
+            font=("Segoe UI", 10, "bold"),
+        )
+        style.map(
+            "Accent.TButton",
+            background=[
+                ("disabled", CONTROL_COLOR),
+                ("pressed", TEXT_COLOR),
+                ("active", TEXT_COLOR),
+            ],
+            foreground=[
+                ("disabled", DISABLED_COLOR),
+                ("pressed", BASE_COLOR),
+                ("active", BASE_COLOR),
+            ],
+        )
+
+        style.configure(
+            "TEntry",
+            fieldbackground=CONTROL_COLOR,
+            foreground=TEXT_COLOR,
+            insertcolor=TEXT_COLOR,
+            bordercolor=ACCENT_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+            padding=5,
+        )
+        style.map(
+            "TEntry",
+            fieldbackground=[("disabled", CONTROL_COLOR)],
+            foreground=[("disabled", DISABLED_COLOR)],
+        )
+
+        style.configure(
+            "TCombobox",
+            fieldbackground=CONTROL_COLOR,
+            background=CONTROL_COLOR,
+            foreground=TEXT_COLOR,
+            arrowcolor=ACCENT_COLOR,
+            bordercolor=ACCENT_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+            padding=4,
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[
+                ("readonly", CONTROL_COLOR),
+                ("disabled", CONTROL_COLOR),
+            ],
+            foreground=[
+                ("readonly", TEXT_COLOR),
+                ("disabled", DISABLED_COLOR),
+            ],
+            selectbackground=[("readonly", ACCENT_COLOR)],
+            selectforeground=[("readonly", BASE_COLOR)],
+            arrowcolor=[
+                ("disabled", DISABLED_COLOR),
+                ("readonly", ACCENT_COLOR),
+            ],
+        )
+
+        style.configure(
+            "TCheckbutton",
+            background=BASE_COLOR,
+            foreground=TEXT_COLOR,
+            indicatorbackground=CONTROL_COLOR,
+            indicatorforeground=BASE_COLOR,
+            focuscolor=ACCENT_COLOR,
+        )
+        style.map(
+            "TCheckbutton",
+            background=[("active", BASE_COLOR)],
+            foreground=[("active", ACCENT_COLOR)],
+            indicatorbackground=[
+                ("selected", ACCENT_COLOR),
+                ("!selected", CONTROL_COLOR),
+            ],
+        )
+
+        style.configure(
+            "Accent.Horizontal.TProgressbar",
+            troughcolor=CONTROL_COLOR,
+            background=ACCENT_COLOR,
+            bordercolor=BASE_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+        )
+        style.configure(
+            "Vertical.TScrollbar",
+            background=ACCENT_COLOR,
+            troughcolor=CONTROL_COLOR,
+            arrowcolor=BASE_COLOR,
+            bordercolor=BASE_COLOR,
+            lightcolor=ACCENT_COLOR,
+            darkcolor=ACCENT_COLOR,
+        )
 
     def _build_ui(self) -> None:
         root = ttk.Frame(self, padding=14)
@@ -56,8 +244,14 @@ class Audio2TextApp(tk.Tk):
         root.columnconfigure(0, weight=1)
         root.rowconfigure(2, weight=1)
 
-        ttk.Label(root, text="Audio2Text", font=("Segoe UI", 20, "bold")).grid(row=0, column=0, sticky="w")
-        ttk.Label(root, text="Transcripción local de audio por lotes").grid(row=0, column=0, sticky="e")
+        ttk.Label(root, text="Audio2Text", style="Title.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(
+            root,
+            text="Transcripción local de audio por lotes",
+            style="Subtitle.TLabel",
+        ).grid(row=0, column=0, sticky="e")
 
         settings = ttk.LabelFrame(root, text="Configuración", padding=10)
         settings.grid(row=1, column=0, sticky="ew", pady=10)
@@ -97,7 +291,9 @@ class Audio2TextApp(tk.Tk):
         format_frame.grid(row=1, column=0, columnspan=8, sticky="w", pady=(10, 0))
         ttk.Label(format_frame, text="Exportar:").pack(side="left")
         for name, variable in self.formats.items():
-            ttk.Checkbutton(format_frame, text=name.upper(), variable=variable).pack(side="left", padx=(10, 0))
+            ttk.Checkbutton(
+                format_frame, text=name.upper(), variable=variable
+            ).pack(side="left", padx=(10, 0))
 
         queue_frame = ttk.LabelFrame(root, text="Cola de archivos", padding=10)
         queue_frame.grid(row=2, column=0, sticky="nsew")
@@ -117,7 +313,21 @@ class Audio2TextApp(tk.Tk):
             button.pack(side="left", padx=(0, 8))
             self.queue_buttons.append(button)
 
-        self.file_list = tk.Listbox(queue_frame, selectmode=tk.EXTENDED, font=("Consolas", 10))
+        self.file_list = tk.Listbox(
+            queue_frame,
+            selectmode=tk.EXTENDED,
+            font=("Consolas", 10),
+            background=BASE_COLOR,
+            foreground=TEXT_COLOR,
+            selectbackground=ACCENT_COLOR,
+            selectforeground=BASE_COLOR,
+            highlightbackground=ACCENT_COLOR,
+            highlightcolor=ACCENT_COLOR,
+            highlightthickness=1,
+            borderwidth=0,
+            relief="flat",
+            activestyle="none",
+        )
         self.file_list.grid(row=1, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(queue_frame, command=self.file_list.yview)
         scroll.grid(row=1, column=1, sticky="ns")
@@ -129,23 +339,48 @@ class Audio2TextApp(tk.Tk):
         ttk.Label(destination, text="Guardar en:").grid(row=0, column=0, padx=(0, 8))
         self.output_entry = ttk.Entry(destination, textvariable=self.output_dir)
         self.output_entry.grid(row=0, column=1, sticky="ew")
-        self.output_button = ttk.Button(destination, text="Elegir carpeta", command=self._choose_output)
+        self.output_button = ttk.Button(
+            destination, text="Elegir carpeta", command=self._choose_output
+        )
         self.output_button.grid(row=0, column=2, padx=(8, 0))
 
         progress = ttk.LabelFrame(root, text="Progreso", padding=10)
         progress.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         progress.columnconfigure(1, weight=1)
-        ttk.Label(progress, text="Archivo actual").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Progressbar(progress, variable=self.current_progress, maximum=100).grid(row=0, column=1, sticky="ew")
-        ttk.Label(progress, text="Lote completo").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
-        ttk.Progressbar(progress, variable=self.batch_progress, maximum=100).grid(row=1, column=1, sticky="ew", pady=(6, 0))
-        ttk.Label(progress, textvariable=self.status).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Label(progress, text="Archivo actual").grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        ttk.Progressbar(
+            progress,
+            variable=self.current_progress,
+            maximum=100,
+            style="Accent.Horizontal.TProgressbar",
+        ).grid(row=0, column=1, sticky="ew")
+        ttk.Label(progress, text="Lote completo").grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=(6, 0)
+        )
+        ttk.Progressbar(
+            progress,
+            variable=self.batch_progress,
+            maximum=100,
+            style="Accent.Horizontal.TProgressbar",
+        ).grid(row=1, column=1, sticky="ew", pady=(6, 0))
+        ttk.Label(progress, textvariable=self.status).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0)
+        )
 
         actions = ttk.Frame(root)
         actions.grid(row=5, column=0, sticky="e", pady=(10, 0))
-        self.start_button = ttk.Button(actions, text="Iniciar transcripción", command=self._start)
+        self.start_button = ttk.Button(
+            actions,
+            text="Iniciar transcripción",
+            command=self._start,
+            style="Accent.TButton",
+        )
         self.start_button.pack(side="left")
-        self.cancel_button = ttk.Button(actions, text="Cancelar", command=self._cancel, state="disabled")
+        self.cancel_button = ttk.Button(
+            actions, text="Cancelar", command=self._cancel, state="disabled"
+        )
         self.cancel_button.pack(side="left", padx=(8, 0))
 
     def _add_paths(self, paths: list[Path]) -> None:
