@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Build outputs
+build/
+dist/
+*.spec.bak
+
+# Downloaded models and local outputs
+models/
+outputs/
+transcriptions/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

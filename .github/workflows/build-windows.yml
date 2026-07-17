@@ -1,0 +1,53 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ejecutar pruebas
+        run: python -m unittest discover -s tests -v
+
+      - name: Compilar aplicacion
+        run: python -m PyInstaller --noconfirm --clean Audio2Text.spec
+
+      - name: Comprimir aplicacion
+        shell: pwsh
+        run: Compress-Archive -Path dist/Audio2Text/* -DestinationPath Audio2Text-Windows.zip
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Audio2Text-Windows
+          path: Audio2Text-Windows.zip
+          if-no-files-found: error
+
+      - name: Crear lanzamiento para una etiqueta
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" Audio2Text-Windows.zip --generate-notes
