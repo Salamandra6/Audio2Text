@@ -1,4 +1,4 @@
-from audio2text.app import run
+from audio2text.scrollable_app import run
 
 
 if __name__ == "__main__":
