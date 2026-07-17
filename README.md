@@ -4,7 +4,8 @@ Aplicación de escritorio en Python para transcribir muchos archivos de audio o 
 
 ## Características
 
-- Interfaz gráfica para Windows construida con Tkinter.
+- Interfaz moderna para Windows construida con **CustomTkinter**.
+- Diseño de tarjetas redondeadas con paleta azul `#00224c`, blanco y amarillo `#ffd100`.
 - Selección de varios archivos o búsqueda recursiva dentro de una carpeta.
 - Cola de procesamiento con estado individual por archivo.
 - Detección automática de idioma o selección manual.
