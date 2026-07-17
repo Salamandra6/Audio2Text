@@ -6,12 +6,20 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for package in ("faster_whisper", "ctranslate2", "av", "tokenizers", "onnxruntime"):
+for package in (
+    "customtkinter",
+    "faster_whisper",
+    "ctranslate2",
+    "av",
+    "tokenizers",
+    "onnxruntime",
+):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 
+datas += copy_metadata("customtkinter")
 datas += copy_metadata("faster-whisper")
 
 analysis = Analysis(
