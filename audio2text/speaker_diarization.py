@@ -87,7 +87,7 @@ class SpeakerDiarizer:
         import torch
         from pyannote.audio import Pipeline
 
-        resolved_device = "cuda" if device == "cuda" and torch.cuda.is_available() else "cpu"
+        resolved_device = "cuda" if device != "cpu" and torch.cuda.is_available() else "cpu"
         cache_key = (token.strip(), resolved_device)
         if self._pipeline is None or self._cache_key != cache_key:
             if status_callback:
