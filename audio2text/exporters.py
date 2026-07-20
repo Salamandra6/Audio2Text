@@ -11,6 +11,7 @@ class TranscriptSegment:
     start: float
     end: float
     text: str
+    speaker: str | None = None
 
 
 @dataclass(slots=True)
@@ -34,10 +35,15 @@ def _timestamp(seconds: float, decimal_marker: str = ",") -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}{decimal_marker}{millis:03d}"
 
 
+def _segment_text(segment: TranscriptSegment) -> str:
+    text = segment.text.strip()
+    return f"{segment.speaker}: {text}" if segment.speaker else text
+
+
 def to_srt(segments: Iterable[TranscriptSegment]) -> str:
     blocks: list[str] = []
     for index, segment in enumerate(segments, start=1):
-        text = segment.text.strip()
+        text = _segment_text(segment)
         if not text:
             continue
         blocks.append(
@@ -51,7 +57,7 @@ def to_srt(segments: Iterable[TranscriptSegment]) -> str:
 def to_vtt(segments: Iterable[TranscriptSegment]) -> str:
     blocks = ["WEBVTT"]
     for segment in segments:
-        text = segment.text.strip()
+        text = _segment_text(segment)
         if not text:
             continue
         blocks.append(
@@ -83,7 +89,8 @@ def export_result(
         file_format = selected_format.lower().strip()
         if file_format == "txt":
             path = _unique_path(folder, stem, ".txt")
-            path.write_text(result.text + ("\n" if result.text else ""), encoding="utf-8")
+            lines = [_segment_text(segment) for segment in result.segments if segment.text.strip()]
+            path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
         elif file_format == "srt":
             path = _unique_path(folder, stem, ".srt")
             path.write_text(to_srt(result.segments), encoding="utf-8")
