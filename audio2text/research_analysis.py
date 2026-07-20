@@ -51,14 +51,39 @@ def clean_transcript(result: TranscriptionResult) -> str:
     return "\n\n".join(paragraphs)
 
 
+def _speaker_paragraphs(result: TranscriptionResult, correction: bool) -> list[str]:
+    paragraphs: list[str] = []
+    current_speaker: str | None = None
+    current_parts: list[str] = []
+    for segment in result.segments:
+        text = segment.text.strip()
+        if not text:
+            continue
+        if correction:
+            text = normalize_text(text)
+        speaker = segment.speaker or "Persona no determinada"
+        if current_parts and speaker != current_speaker:
+            paragraphs.append(f"{current_speaker}: {' '.join(current_parts)}")
+            current_parts = []
+        current_speaker = speaker
+        current_parts.append(text)
+    if current_parts:
+        paragraphs.append(f"{current_speaker}: {' '.join(current_parts)}")
+    return paragraphs
+
+
 def transcript_lines(
     result: TranscriptionResult,
     mode: str,
     timestamps: bool,
     correction: bool = False,
 ) -> list[str]:
+    has_speakers = any(segment.speaker for segment in result.segments)
     if mode == "clean" and not timestamps:
+        if has_speakers:
+            return _speaker_paragraphs(result, correction=True)
         return [part for part in clean_transcript(result).split("\n\n") if part]
+
     lines = []
     for segment in result.segments:
         text = segment.text.strip()
@@ -66,8 +91,13 @@ def transcript_lines(
             continue
         if mode == "clean" or correction:
             text = normalize_text(text)
-        prefix = f"[{timestamp(segment.start)}] " if timestamps else ""
-        lines.append(prefix + text)
+        parts = []
+        if timestamps:
+            parts.append(f"[{timestamp(segment.start)}]")
+        if segment.speaker:
+            parts.append(f"{segment.speaker}:")
+        parts.append(text)
+        lines.append(" ".join(parts))
     return lines
 
 
@@ -114,15 +144,19 @@ def main_topics(result: TranscriptionResult, limit: int = 8) -> list[str]:
 
 def metadata_rows(result: TranscriptionResult) -> list[tuple[str, str]]:
     probability = max(0.0, min(1.0, float(result.language_probability)))
-    return [
+    people = sorted({segment.speaker for segment in result.segments if segment.speaker})
+    rows = [
         ("Archivo de origen", Path(result.source_file).name),
         ("Ruta de origen", str(result.source_file)),
         ("Idioma detectado", result.language or "No determinado"),
         ("Confianza del idioma", f"{probability * 100:.1f}%"),
         ("Duración", timestamp(result.duration)),
         ("Segmentos", str(len(result.segments))),
-        ("Fecha de generación", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
     ]
+    if people:
+        rows.append(("Personas identificadas", str(len(people))))
+    rows.append(("Fecha de generación", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    return rows
 
 
 def build_sections(result: TranscriptionResult, options: dict | None) -> dict:
