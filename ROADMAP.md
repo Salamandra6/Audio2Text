@@ -22,7 +22,10 @@
 - Descarga asistida de instaladores o archivos ZIP desde GitHub Releases.
 
 ## v0.5.0 — Análisis avanzado opcional
-- Reproductor sincronizado opcional.
-- Identificación de participantes como Persona 1, Persona 2, etc.
+- Reproductor sincronizado desde el editor.
+- Identificación opcional de participantes como Persona 1, Persona 2, etc.
+- Cantidad de personas automática o definida por el usuario.
+- Novedades agrupadas por versión después de actualizar.
+- Validación previa del módulo avanzado, FFmpeg y token.
 
 Las funciones pesadas seguirán siendo opcionales para mantener buen rendimiento en equipos modestos.
