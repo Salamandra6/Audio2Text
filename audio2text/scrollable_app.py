@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import customtkinter as ctk
 
+from . import __version__
 from .app import (
     Audio2TextApp as BaseAudio2TextApp,
     CONTROL,
@@ -13,7 +14,7 @@ from .app import (
 
 
 class Audio2TextApp(BaseAudio2TextApp):
-    """Audio2Text con desplazamiento vertical para la ventana completa."""
+    """Transcriptor con desplazamiento vertical para la ventana completa."""
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -35,21 +36,21 @@ class Audio2TextApp(BaseAudio2TextApp):
 
         ctk.CTkLabel(
             header,
-            text="AUDIO INTELLIGENCE",
+            text=f"v{__version__}",
             text_color=YELLOW,
             font=self._font(11, True),
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkLabel(
             header,
-            text="Audio2Text",
+            text="Transcriptor de Audio a Texto",
             text_color=WHITE,
             font=self._font(32, True),
         ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         ctk.CTkLabel(
             header,
-            text="Transcripción local por lotes, rápida, privada y simple.",
+            text="Uso exclusivo de su destinatario. Prohibida su comercialización.",
             text_color=MUTED,
             font=self._font(13),
         ).grid(row=2, column=0, sticky="w", pady=(3, 0))
