@@ -51,7 +51,12 @@ def clean_transcript(result: TranscriptionResult) -> str:
     return "\n\n".join(paragraphs)
 
 
-def transcript_lines(result: TranscriptionResult, mode: str, timestamps: bool) -> list[str]:
+def transcript_lines(
+    result: TranscriptionResult,
+    mode: str,
+    timestamps: bool,
+    correction: bool = False,
+) -> list[str]:
     if mode == "clean" and not timestamps:
         return [part for part in clean_transcript(result).split("\n\n") if part]
     lines = []
@@ -59,7 +64,7 @@ def transcript_lines(result: TranscriptionResult, mode: str, timestamps: bool) -
         text = segment.text.strip()
         if not text:
             continue
-        if mode == "clean":
+        if mode == "clean" or correction:
             text = normalize_text(text)
         prefix = f"[{timestamp(segment.start)}] " if timestamps else ""
         lines.append(prefix + text)
@@ -123,11 +128,13 @@ def metadata_rows(result: TranscriptionResult) -> list[tuple[str, str]]:
 def build_sections(result: TranscriptionResult, options: dict | None) -> dict:
     config = options or {}
     mode = str(config.get("mode", "literal")).lower()
+    timestamps = bool(config.get("timestamps", False))
+    correction = bool(config.get("correction", False))
     return {
         "mode": mode,
-        "timestamps": bool(config.get("timestamps", False)),
+        "timestamps": timestamps,
         "metadata": metadata_rows(result) if config.get("metadata", True) else [],
         "summary": extractive_summary(result) if config.get("summary", False) else [],
         "topics": main_topics(result) if config.get("topics", False) else [],
-        "transcript": transcript_lines(result, mode, bool(config.get("timestamps", False))),
+        "transcript": transcript_lines(result, mode, timestamps, correction),
     }
