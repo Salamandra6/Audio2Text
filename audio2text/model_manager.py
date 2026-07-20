@@ -9,6 +9,14 @@ from faster_whisper.utils import download_model
 
 MODEL_NAMES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
 DOWNLOAD_IDS = {"turbo": "large-v3-turbo"}
+CACHE_MARKERS = {
+    "tiny": ("faster-whisper-tiny",),
+    "base": ("faster-whisper-base",),
+    "small": ("faster-whisper-small",),
+    "medium": ("faster-whisper-medium",),
+    "large-v3": ("faster-whisper-large-v3",),
+    "turbo": ("faster-whisper-large-v3-turbo", "faster-whisper-turbo"),
+}
 MODEL_DESCRIPTIONS = {
     "tiny": "Muy rápido · menor precisión",
     "base": "Rápido · recomendado para equipos modestos",
@@ -62,15 +70,15 @@ def find_model_path(name: str) -> Path | None:
         return direct
 
     root = model_cache_root()
-    aliases = [name.lower()]
-    if name == "turbo":
-        aliases += ["large-v3-turbo", "faster-whisper-turbo"]
+    markers = CACHE_MARKERS.get(name, (name.lower(),))
     for model_file in root.rglob("model.bin"):
         folder = model_file.parent
         if not (folder / "config.json").is_file():
             continue
         candidate = str(folder).lower().replace("_", "-")
-        if any(alias in candidate for alias in aliases):
+        if name == "large-v3" and "large-v3-turbo" in candidate:
+            continue
+        if any(marker in candidate for marker in markers):
             return folder
     return None
 
