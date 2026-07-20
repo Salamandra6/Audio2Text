@@ -1,4 +1,4 @@
-from audio2text.enhanced_app import run
+from audio2text.stable_app import run
 
 
 if __name__ == "__main__":
