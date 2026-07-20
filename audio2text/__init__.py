@@ -1,3 +1,3 @@
-"""Audio2Text: transcripción local de audio por lotes."""
+"""Transcriptor de Audio a Texto: procesamiento local de audio por lotes."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
