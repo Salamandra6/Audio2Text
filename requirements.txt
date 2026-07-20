@@ -1,3 +1,4 @@
 customtkinter==6.0.0
-faster-whisper==1.2.0
+faster-whisper==1.2.1
+av>=11,<19
 requests>=2.32.5,<3.0
