@@ -9,7 +9,8 @@ import customtkinter as ctk
 from .app import BASE, BORDER, CONTROL, HOVER, MUTED, WHITE, YELLOW
 from .research_documents import export_research_result
 from .stable_app import Audio2TextApp as StableAudio2TextApp
-from .transcriber import AudioTranscriber, TranscriptionCancelled
+from .prompted_transcriber import PromptedAudioTranscriber
+from .transcriber import TranscriptionCancelled
 
 
 class Audio2TextApp(StableAudio2TextApp):
@@ -127,7 +128,7 @@ class Audio2TextApp(StableAudio2TextApp):
                     self._transcriber_cache = None
                     gc.collect()
                 self.events.put(("phase", "Etapa 2/5 · Cargando el modelo…", None))
-                transcriber = AudioTranscriber(
+                transcriber = PromptedAudioTranscriber(
                     options["model"], options["device"], options["compute"],
                     performance_profile=options["profile"],
                     status_callback=lambda text: self.events.put(("phase", f"Etapa 2/5 · {text}", None)),
@@ -155,12 +156,17 @@ class Audio2TextApp(StableAudio2TextApp):
                 result = transcriber.transcribe_file(
                     path, language=options["language_code"],
                     progress_callback=progress, cancel_event=self.cancel_event,
+                    initial_prompt=options.get("dictionary_prompt"),
                 )
                 self.events.put(("phase", f"Etapa 4/5 · Creando documentos de {path.name}…", 0.99))
-                export_research_result(
+                written = export_research_result(
                     result, options["output"], options["formats"],
                     content_options=options["content_options"],
                 )
+                if hasattr(self, "_record_processed"):
+                    self._record_processed(path, written)
+                if hasattr(self, "_on_result_ready"):
+                    self._on_result_ready(result, written)
                 success += 1
                 self.events.put(("file", index, "Completado"))
                 self.events.put(("current", 1.0, "Documentos completados."))
@@ -174,8 +180,11 @@ class Audio2TextApp(StableAudio2TextApp):
                 self.events.put(("error_detail", report))
             self.events.put(("batch", (index + 1) / total))
 
+        cancelled = self.cancel_event.is_set()
+        if hasattr(self, "_mark_session_finished"):
+            self._mark_session_finished(success, errors, cancelled)
         self.events.put(("phase", "Etapa 5/5 · Finalizando el lote…", 1.0))
-        self.events.put(("finished", success, errors, self.cancel_event.is_set(), options["output"]))
+        self.events.put(("finished", success, errors, cancelled, options["output"]))
 
     def _set_running(self, running: bool) -> None:
         super()._set_running(running)
