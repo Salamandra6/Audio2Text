@@ -8,6 +8,7 @@ from typing import Any
 APP_DIR = Path.home() / ".audio2text"
 SESSION_FILE = APP_DIR / "session.json"
 HISTORY_FILE = APP_DIR / "processed.json"
+PREFERENCES_FILE = APP_DIR / "preferences.json"
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -38,6 +39,15 @@ def clear_session() -> None:
         SESSION_FILE.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def load_preferences() -> dict:
+    value = _read_json(PREFERENCES_FILE, {})
+    return value if isinstance(value, dict) else {}
+
+
+def save_preferences(payload: dict) -> None:
+    _write_json(PREFERENCES_FILE, payload)
 
 
 def file_fingerprint(path: str | Path) -> str:
