@@ -13,6 +13,9 @@ for package in (
     "av",
     "tokenizers",
     "onnxruntime",
+    "docx",
+    "reportlab",
+    "packaging",
 ):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
@@ -21,6 +24,9 @@ for package in (
 
 datas += copy_metadata("customtkinter")
 datas += copy_metadata("faster-whisper")
+datas += copy_metadata("python-docx")
+datas += copy_metadata("reportlab")
+datas += copy_metadata("packaging")
 
 analysis = Analysis(
     ["main.py"],
