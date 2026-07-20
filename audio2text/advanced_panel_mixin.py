@@ -114,6 +114,21 @@ class AdvancedPanelMixin:
     def _open_speaker_conditions() -> None:
         webbrowser.open("https://huggingface.co/pyannote/speaker-diarization-community-1")
 
+    def _show_preflight(self) -> bool:
+        self._set_activity("Etapa 1/6 · Comprobando archivos y carpeta de destino…", None)
+        if self.speaker_enabled.get():
+            available, detail = module_status()
+            if not available:
+                messagebox.showerror("Módulo de personas no disponible", detail)
+                return False
+            if not self.speaker_token.get().strip():
+                messagebox.showerror(
+                    "Falta token",
+                    "Ingresa un token de Hugging Face o desactiva la identificación de personas.",
+                )
+                return False
+        return super()._show_preflight()
+
     def _current_options(self) -> dict:
         options = super()._current_options()
         expected = None if self.speaker_count.get() == "Automático" else int(self.speaker_count.get())
