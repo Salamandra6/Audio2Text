@@ -16,6 +16,7 @@ for package in (
     "docx",
     "reportlab",
     "packaging",
+    "tkinterdnd2",
 ):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
@@ -27,6 +28,7 @@ datas += copy_metadata("faster-whisper")
 datas += copy_metadata("python-docx")
 datas += copy_metadata("reportlab")
 datas += copy_metadata("packaging")
+datas += copy_metadata("tkinterdnd2")
 
 analysis = Analysis(
     ["main.py"],
