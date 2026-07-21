@@ -42,6 +42,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Diagnóstico más claro para instalaciones NVIDIA incompletas.",
             ),
         ),
+        (
+            "0.5.2",
+            (
+                "El botón Buscar actualizaciones ahora consulta directamente origin/main en instalaciones Git.",
+                "Actualización del código y sincronización de dependencias desde la aplicación.",
+                "Protección contra sobrescritura cuando existen cambios locales o ramas divergidas.",
+                "Compatibilidad conservada con instaladores publicados mediante GitHub Releases.",
+            ),
+        ),
     )
 )
 
