@@ -127,11 +127,16 @@ class Audio2TextApp(ResearchAudio2TextApp):
         options["content_options"]["correction"] = self.post_correction.get()
         return options
 
-    def _show_preflight(self) -> bool:
+    def _show_preflight(self, indexes: list[int] | None = None) -> bool:
         if not self.files:
             messagebox.showwarning("Sin archivos", "Agrega al menos un archivo para ejecutar el diagnóstico.")
             return False
-        results = run_preflight(list(self.files), Path(self.output_dir.get()).expanduser(), self.device.get())
+        target_indexes = list(indexes) if indexes is not None else self._selected_file_indexes()
+        paths = [self.files[index] for index in target_indexes]
+        if not paths:
+            messagebox.showwarning("Sin archivos seleccionados", "Marca al menos un archivo o deja todas las casillas vacías para revisar toda la cola.")
+            return False
+        results = run_preflight(paths, Path(self.output_dir.get()).expanduser(), self.device.get())
         symbols = {"ok": "✓", "warning": "!", "error": "✗"}
         visible = results[:25]
         text = "\n".join(f"{symbols[item.level]} {item.title}: {item.detail}" for item in visible)
@@ -140,41 +145,65 @@ class Audio2TextApp(ResearchAudio2TextApp):
         if has_blocking_errors(results):
             messagebox.showerror("Diagnóstico con errores", text)
             return False
-        return messagebox.askokcancel("Diagnóstico correcto", f"{text}\n\n¿Continuar con el procesamiento?")
+        return messagebox.askokcancel(
+            "Diagnóstico correcto",
+            f"Se procesarán {len(paths)} archivo(s).\n\n{text}\n\n¿Continuar con el procesamiento?",
+        )
 
     def _start(self) -> None:
         if self.configuration_mode.get() == "Automática recomendada":
             self._on_configuration_mode("Automática recomendada")
-        if not self._handle_duplicates():
-            return
-        self._set_activity("Etapa 1/5 · Comprobando archivos y carpeta de destino…", None)
-        if not self._show_preflight():
-            return
-        self._save_session(in_progress=True)
-        super()._start()
 
-    def _handle_duplicates(self) -> bool:
-        duplicates = [(index, path) for index, path in enumerate(self.files) if find_processed(path)]
+        run_indexes = self._selected_file_indexes()
+        filtered_indexes = self._handle_duplicates(run_indexes)
+        if filtered_indexes is None or not filtered_indexes:
+            return
+
+        self._run_file_indexes_override = filtered_indexes
+        try:
+            self._set_activity("Etapa 1/5 · Comprobando archivos y carpeta de destino…", None)
+            if not self._show_preflight(filtered_indexes):
+                return
+            self._save_session(in_progress=True)
+            super()._start()
+        finally:
+            # super()._start() ya creó una copia de las opciones para el hilo.
+            self._run_file_indexes_override = None
+
+    def _handle_duplicates(self, indexes: list[int]) -> list[int] | None:
+        formats = [name for name, variable in self.formats.items() if variable.get()]
+        output = Path(self.output_dir.get()).expanduser()
+        duplicates = [
+            (index, self.files[index])
+            for index in indexes
+            if find_processed(self.files[index], output_dir=output, formats=formats)
+        ]
         if not duplicates:
-            return True
+            return list(indexes)
+
         names = "\n".join(f"• {path.name}" for _, path in duplicates[:10])
         answer = messagebox.askyesnocancel(
-            "Archivos procesados anteriormente",
-            f"Se encontraron {len(duplicates)} archivo(s) ya procesado(s):\n\n{names}\n\n"
-            "Sí: omitirlos.\nNo: procesarlos nuevamente.\nCancelar: volver.",
+            "Resultados existentes",
+            f"Se encontraron {len(duplicates)} archivo(s) seleccionados con resultados existentes "
+            f"en la carpeta de destino actual:\n\n{names}\n\n"
+            "Sí: omitirlos solo en esta ejecución.\n"
+            "No: procesarlos nuevamente y crear archivos nuevos.\n"
+            "Cancelar: volver.",
         )
         if answer is None:
-            return False
-        if answer:
-            for index, _ in reversed(duplicates):
-                self.files.pop(index)
-                self.file_statuses.pop(index)
-                self.file_selected.pop(index)
-            self._render_file_rows()
-            if not self.files:
-                messagebox.showinfo("Sin archivos pendientes", "Todos los archivos ya fueron procesados.")
-                return False
-        return True
+            return None
+        if not answer:
+            return list(indexes)
+
+        duplicate_indexes = {index for index, _ in duplicates}
+        pending = [index for index in indexes if index not in duplicate_indexes]
+        if not pending:
+            messagebox.showinfo(
+                "Sin archivos pendientes",
+                "Todos los archivos elegidos tienen resultados existentes.\n\n"
+                "No se quitó ni borró ningún elemento de la cola.",
+            )
+        return pending
 
     def _record_processed(self, path: Path, outputs: list[Path]) -> None:
         remember_processed(path, outputs)
@@ -183,6 +212,7 @@ class Audio2TextApp(ResearchAudio2TextApp):
         return {
             "in_progress": in_progress,
             "files": [str(path) for path in self.files],
+            "selected": [variable.get() for variable in self.file_selected],
             "output": self.output_dir.get(),
             "model": self.model.get(),
             "language": self.language.get(),
@@ -221,7 +251,11 @@ class Audio2TextApp(ResearchAudio2TextApp):
         try:
             self.files = paths
             self.file_statuses = ["Pendiente"] * len(paths)
-            self.file_selected = [tk.BooleanVar(value=False) for _ in paths]
+            selected_values = list(data.get("selected", []))
+            self.file_selected = [
+                tk.BooleanVar(value=bool(selected_values[index]) if index < len(selected_values) else False)
+                for index in range(len(paths))
+            ]
             for key, variable in (
                 ("output", self.output_dir), ("model", self.model), ("language", self.language),
                 ("device", self.device), ("compute", self.compute),
