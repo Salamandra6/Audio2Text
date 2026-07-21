@@ -51,6 +51,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Compatibilidad conservada con instaladores publicados mediante GitHub Releases.",
             ),
         ),
+        (
+            "0.5.3",
+            (
+                "Corrección del arrastre nativo de archivos en ventanas CustomTkinter.",
+                "Nueva zona visible para soltar uno o varios archivos o carpetas.",
+                "Indicador visual al entrar, salir y soltar sobre la zona de recepción.",
+                "Actualización de TkinterDnD a la integración pública compatible con CustomTkinter.",
+            ),
+        ),
     )
 )
 
