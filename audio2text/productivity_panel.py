@@ -7,7 +7,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from .app import BASE, BORDER, CONTROL, HOVER, MUTED, WHITE, YELLOW
+from .app import BORDER, CONTROL, HOVER, MUTED, WHITE
 
 
 class ProductivityPanelMixin:
@@ -32,42 +32,14 @@ class ProductivityPanelMixin:
         ).grid(row=0, column=0, sticky="ew", padx=18, pady=(17, 0))
         self.productivity_hint = ctk.CTkLabel(
             card,
-            text="Suelta archivos en la zona indicada. También puedes administrar modelos, editar resultados y buscar actualizaciones.",
+            text="El arrastre funciona directamente sobre la cola de archivos superior. Aquí puedes administrar modelos, editar resultados y actualizar la aplicación.",
             text_color=MUTED, anchor="w", justify="left", wraplength=1000,
             font=self._font(10),
         )
         self.productivity_hint.grid(row=1, column=0, sticky="ew", padx=18, pady=(3, 12))
 
-        self.drop_zone = ctk.CTkFrame(
-            card,
-            fg_color=BASE,
-            border_color=BORDER,
-            border_width=2,
-            corner_radius=14,
-            height=78,
-        )
-        self.drop_zone.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 14))
-        self.drop_zone.grid_columnconfigure(0, weight=1)
-        self.drop_zone.grid_propagate(False)
-        self.drop_zone_label = ctk.CTkLabel(
-            self.drop_zone,
-            text="⬇  ARRASTRA Y SUELTA AQUÍ ARCHIVOS O CARPETAS",
-            text_color=YELLOW,
-            anchor="center",
-            font=self._font(11, True),
-        )
-        self.drop_zone_label.grid(row=0, column=0, sticky="nsew", padx=16, pady=(13, 1))
-        self.drop_zone_help = ctk.CTkLabel(
-            self.drop_zone,
-            text="Admite uno o varios archivos y recorre las subcarpetas.",
-            text_color=MUTED,
-            anchor="center",
-            font=self._font(9),
-        )
-        self.drop_zone_help.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 12))
-
         buttons = ctk.CTkFrame(card, fg_color="transparent")
-        buttons.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 18))
+        buttons.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 18))
         for column in range(4):
             buttons.grid_columnconfigure(column, weight=1)
         self.models_button = self._tool_button(buttons, "Administrar modelos", self._open_model_manager, 0)
