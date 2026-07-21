@@ -17,6 +17,7 @@ class Audio2TextApp(EnhancedAudio2TextApp):
     def __init__(self) -> None:
         self._active_options: dict = {}
         self._dead_worker_seen_at: float | None = None
+        self._terminal_event_queued = False
         super().__init__()
 
     def _current_options(self) -> dict:
@@ -64,6 +65,7 @@ class Audio2TextApp(EnhancedAudio2TextApp):
         self._run_started_at = time.monotonic()
         self._last_worker_activity = self._run_started_at
         self._dead_worker_seen_at = None
+        self._terminal_event_queued = False
         self._active_options = dict(options)
         self._set_activity("Preparando el proceso…", None)
         self._set_running(True)
@@ -89,11 +91,13 @@ class Audio2TextApp(EnhancedAudio2TextApp):
                 options,
                 traceback.format_exc(),
             )
+            self._terminal_event_queued = True
             self.events.put(("error_detail", report))
             self.events.put(("fatal", f"El proceso terminó inesperadamente: {type(exc).__name__}: {exc}"))
 
     def _report_startup_failure(self, exc: Exception, options: dict) -> None:
         self._running = False
+        self._terminal_event_queued = True
         report = self._create_error_report(None, exc, options, traceback.format_exc())
         self._handle_error(report)
         self._set_running(False)
@@ -127,17 +131,25 @@ class Audio2TextApp(EnhancedAudio2TextApp):
                 if now - self._dead_worker_seen_at >= 10:
                     self._running = False
                     self._set_running(False)
-                    exc = RuntimeError("El hilo terminó sin emitir un evento final.")
-                    report = self._create_error_report(
-                        None,
-                        exc,
-                        self._active_options or self._current_options(),
-                        "El monitor detectó un hilo finalizado sin evento finished o fatal.",
-                    )
-                    self._handle_error(report)
-                    text = "El proceso se detuvo. El diagnóstico está disponible en ‘Ver último error’."
-                    self._set_status(text)
-                    self._finish_activity("DETENIDO POR ERROR", text, ERROR)
+                    if self._terminal_event_queued or self.last_error_text:
+                        text = (
+                            "El proceso terminó después del error informado. "
+                            "El diagnóstico principal está disponible en ‘Ver último error’."
+                        )
+                        self._set_status(text)
+                        self._finish_activity("DETENIDO POR ERROR", text, ERROR)
+                    else:
+                        exc = RuntimeError("El hilo terminó sin emitir un evento final.")
+                        report = self._create_error_report(
+                            None,
+                            exc,
+                            self._active_options or self._current_options(),
+                            "El monitor detectó un hilo finalizado sin evento finished o fatal.",
+                        )
+                        self._handle_error(report)
+                        text = "El proceso se detuvo. El diagnóstico está disponible en ‘Ver último error’."
+                        self._set_status(text)
+                        self._finish_activity("DETENIDO POR ERROR", text, ERROR)
 
         self.after(1000, self._update_activity_clock)
 
