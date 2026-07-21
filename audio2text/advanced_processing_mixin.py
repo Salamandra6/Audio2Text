@@ -110,11 +110,13 @@ class AdvancedProcessingMixin:
 
         success = errors = 0
         total = len(options["files"])
-        for index, path in enumerate(options["files"]):
+        ui_indexes = list(options.get("file_indices", range(total)))
+        for batch_index, path in enumerate(options["files"]):
             if self.cancel_event.is_set():
                 break
-            self.events.put(("file", index, "Procesando"))
-            self.events.put(("phase", f"Etapa 3/6 · Transcribiendo {path.name} ({index + 1}/{total})", 0.0))
+            ui_index = ui_indexes[batch_index] if batch_index < len(ui_indexes) else batch_index
+            self.events.put(("file", ui_index, "Procesando"))
+            self.events.put(("phase", f"Etapa 3/6 · Transcribiendo {path.name} ({batch_index + 1}/{total})", 0.0))
             self.events.put(("current", 0.0, "Preparando audio…"))
 
             def progress(value: float, preview: str) -> None:
@@ -130,7 +132,7 @@ class AdvancedProcessingMixin:
                 except Exception as exc:
                     if options.get("device") != "cpu" and is_cuda_runtime_error(exc):
                         transcriber = self._activate_cpu_fallback(options, exc)
-                        self.events.put(("file", index, "Reintentando en CPU"))
+                        self.events.put(("file", ui_index, "Reintentando en CPU"))
                         result = transcriber.transcribe_file(
                             path, language=options["language_code"],
                             progress_callback=progress, cancel_event=self.cancel_event,
@@ -160,17 +162,17 @@ class AdvancedProcessingMixin:
                 self._record_processed(path, written)
                 self._on_result_ready(result, written)
                 success += 1
-                self.events.put(("file", index, "Completado"))
+                self.events.put(("file", ui_index, "Completado"))
                 self.events.put(("current", 1.0, "Documentos completados."))
             except TranscriptionCancelled:
-                self.events.put(("file", index, "Cancelado"))
+                self.events.put(("file", ui_index, "Cancelado"))
                 break
             except Exception as exc:
                 errors += 1
                 report = self._create_error_report(path, exc, options, traceback.format_exc())
-                self.events.put(("file", index, "Error"))
+                self.events.put(("file", ui_index, "Error"))
                 self.events.put(("error_detail", report))
-            self.events.put(("batch", (index + 1) / total))
+            self.events.put(("batch", (batch_index + 1) / total))
 
         cancelled = self.cancel_event.is_set()
         self._mark_session_finished(success, errors, cancelled)
