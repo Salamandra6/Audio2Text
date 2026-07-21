@@ -33,6 +33,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Módulos avanzados aislados para conservar el rendimiento en equipos modestos.",
             ),
         ),
+        (
+            "0.5.1",
+            (
+                "Respaldo automático en CPU/int8 cuando CUDA, cuBLAS o cuDNN no pueden utilizarse.",
+                "Reintento automático del mismo archivo sin volver a agregarlo.",
+                "Eliminación del segundo aviso falso sobre un hilo terminado sin evento final.",
+                "Diagnóstico más claro para instalaciones NVIDIA incompletas.",
+            ),
+        ),
     )
 )
 
