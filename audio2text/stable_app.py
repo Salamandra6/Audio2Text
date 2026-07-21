@@ -18,12 +18,27 @@ class Audio2TextApp(EnhancedAudio2TextApp):
         self._active_options: dict = {}
         self._dead_worker_seen_at: float | None = None
         self._terminal_event_queued = False
+        self._run_file_indexes_override: list[int] | None = None
         super().__init__()
+
+    def _selected_file_indexes(self) -> list[int]:
+        selected = [
+            index
+            for index, variable in enumerate(self.file_selected)
+            if variable.get()
+        ]
+        return selected or list(range(len(self.files)))
 
     def _current_options(self) -> dict:
         profile_label = self.performance_profile.get()
+        indexes = (
+            list(self._run_file_indexes_override)
+            if self._run_file_indexes_override is not None
+            else self._selected_file_indexes()
+        )
         return {
-            "files": list(self.files),
+            "files": [self.files[index] for index in indexes],
+            "file_indices": indexes,
             "formats": [name for name, value in self.formats.items() if value.get()],
             "output": Path(self.output_dir.get()).expanduser(),
             "model": self.model.get(),
@@ -41,6 +56,9 @@ class Audio2TextApp(EnhancedAudio2TextApp):
             return
 
         options = self._current_options()
+        if not options["files"]:
+            messagebox.showwarning("Sin archivos seleccionados", "Marca al menos un archivo o deja todas las casillas vacías para procesar la cola completa.")
+            return
         if not options["formats"]:
             messagebox.showwarning("Sin formato", "Selecciona al menos un formato de salida.")
             return
@@ -54,7 +72,7 @@ class Audio2TextApp(EnhancedAudio2TextApp):
         self.cancel_event.clear()
         self.current_progress.set(0)
         self.batch_progress.set(0)
-        for index in range(len(self.files)):
+        for index in options["file_indices"]:
             self._set_file_status(index, "Pendiente")
 
         self.last_error_text = ""
