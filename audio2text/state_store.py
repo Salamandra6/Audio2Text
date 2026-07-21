@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 APP_DIR = Path.home() / ".audio2text"
 SESSION_FILE = APP_DIR / "session.json"
@@ -68,11 +68,72 @@ def load_history() -> dict[str, dict]:
     return value if isinstance(value, dict) else {}
 
 
-def find_processed(path: str | Path) -> dict | None:
+def _requested_suffixes(formats: Iterable[str] | None) -> set[str]:
+    if formats is None:
+        return set()
+    suffixes: set[str] = set()
+    for value in formats:
+        name = str(value).strip().lower().lstrip(".")
+        if name:
+            suffixes.add(f".{name}")
+    return suffixes
+
+
+def _same_folder(path: Path, folder: Path) -> bool:
     try:
-        return load_history().get(file_fingerprint(path))
+        return path.parent.resolve(strict=False) == folder.resolve(strict=False)
+    except OSError:
+        return path.parent.absolute() == folder.absolute()
+
+
+def find_processed(
+    path: str | Path,
+    *,
+    output_dir: str | Path | None = None,
+    formats: Iterable[str] | None = None,
+) -> dict | None:
+    """Devuelve un registro solo si sus salidas solicitadas todavía existen.
+
+    El historial no debe bloquear una nueva transcripción cuando el usuario borró
+    los documentos, cambió la carpeta de destino o solicita un formato que no fue
+    generado anteriormente.
+    """
+
+    try:
+        fingerprint = file_fingerprint(path)
     except OSError:
         return None
+
+    history = load_history()
+    entry = history.get(fingerprint)
+    if not isinstance(entry, dict):
+        return None
+
+    raw_outputs = entry.get("outputs", [])
+    outputs = [Path(value).expanduser() for value in raw_outputs if isinstance(value, str) and value]
+    existing = [output for output in outputs if output.is_file()]
+
+    valid = bool(outputs) and len(existing) == len(outputs)
+    if valid and output_dir is not None:
+        destination = Path(output_dir).expanduser()
+        existing = [output for output in existing if _same_folder(output, destination)]
+        valid = bool(existing)
+
+    requested = _requested_suffixes(formats)
+    if valid and requested:
+        available = {output.suffix.lower() for output in existing}
+        valid = requested.issubset(available)
+
+    if valid:
+        return entry
+
+    # Elimina el dato obsoleto para no repetir falsos avisos en ejecuciones futuras.
+    history.pop(fingerprint, None)
+    try:
+        _write_json(HISTORY_FILE, history)
+    except OSError:
+        pass
+    return None
 
 
 def remember_processed(path: str | Path, outputs: list[Path]) -> None:
