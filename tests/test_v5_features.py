@@ -1,11 +1,25 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+from audio2text import state_store
 from audio2text.changelog import changes_between, format_changes
 from audio2text.exporters import TranscriptSegment, TranscriptionResult
 from audio2text.speaker_diarization import SpeakerTurn, assign_person_labels
+from audio2text.stable_app import Audio2TextApp as StableAudio2TextApp
 from audio2text.transcript_editor import editor_text, result_from_editor_text
+
+
+class Flag:
+    def __init__(self, value: bool) -> None:
+        self.value = value
+
+    def get(self) -> bool:
+        return self.value
 
 
 class VersionFiveTests(unittest.TestCase):
@@ -53,6 +67,44 @@ class VersionFiveTests(unittest.TestCase):
         self.assertEqual(edited.segments[0].speaker, "Persona 1")
         self.assertEqual(edited.segments[0].text, "Texto corregido.")
         self.assertEqual(edited.segments[1].speaker, "Persona 2")
+
+    def test_marked_files_limit_the_batch(self) -> None:
+        fake_app = SimpleNamespace(
+            files=[Path("uno.wav"), Path("dos.wav"), Path("tres.wav")],
+            file_selected=[Flag(False), Flag(True), Flag(False)],
+        )
+        indexes = StableAudio2TextApp._selected_file_indexes(fake_app)
+        self.assertEqual(indexes, [1])
+
+        fake_app.file_selected = [Flag(False), Flag(False), Flag(False)]
+        indexes = StableAudio2TextApp._selected_file_indexes(fake_app)
+        self.assertEqual(indexes, [0, 1, 2])
+
+    def test_deleted_outputs_do_not_count_as_processed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app_dir = root / "state"
+            history_file = app_dir / "processed.json"
+            source = root / "audio.wav"
+            destination = root / "resultados"
+            destination.mkdir()
+            source.write_bytes(b"audio de prueba")
+            output = destination / "audio.txt"
+            output.write_text("transcripción", encoding="utf-8")
+
+            with (
+                patch.object(state_store, "APP_DIR", app_dir),
+                patch.object(state_store, "HISTORY_FILE", history_file),
+            ):
+                state_store.remember_processed(source, [output])
+                self.assertIsNotNone(
+                    state_store.find_processed(source, output_dir=destination, formats=["txt"])
+                )
+
+                output.unlink()
+                self.assertIsNone(
+                    state_store.find_processed(source, output_dir=destination, formats=["txt"])
+                )
 
 
 if __name__ == "__main__":
