@@ -78,6 +78,16 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "La lista puede reconstruirse varias veces sin reinicializar TkDND.",
             ),
         ),
+        (
+            "0.5.6",
+            (
+                "Las casillas marcadas ahora limitan el procesamiento a esos archivos; sin marcas se procesa toda la cola.",
+                "El control de duplicados revisa solo los archivos elegidos para la ejecución actual.",
+                "Los resultados borrados o pertenecientes a otra carpeta dejan de bloquear una nueva transcripción.",
+                "Omitir un resultado existente ya no quita ni borra archivos de la cola.",
+                "Los estados de progreso permanecen asociados a la fila correcta al procesar una selección parcial.",
+            ),
+        ),
     )
 )
 
