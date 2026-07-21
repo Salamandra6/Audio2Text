@@ -69,6 +69,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Se eliminó la zona de arrastre inferior duplicada para reducir el desplazamiento.",
             ),
         ),
+        (
+            "0.5.5",
+            (
+                "Corrección del cierre al agregar un segundo archivo con la aplicación abierta.",
+                "La zona de arrastre se registra una sola vez y ya no conserva referencias a filas destruidas.",
+                "Franja de arrastre permanente dentro de la cola de archivos.",
+                "La lista puede reconstruirse varias veces sin reinicializar TkDND.",
+            ),
+        ),
     )
 )
 
