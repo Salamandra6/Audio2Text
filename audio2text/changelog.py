@@ -60,6 +60,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Actualización de TkinterDnD a la integración pública compatible con CustomTkinter.",
             ),
         ),
+        (
+            "0.5.4",
+            (
+                "La cola de archivos superior ahora funciona directamente como zona de arrastre.",
+                "Se pueden agregar más archivos soltándolos encima de las filas ya cargadas.",
+                "La cola vacía muestra una instrucción visible para arrastrar audios, videos o carpetas.",
+                "Se eliminó la zona de arrastre inferior duplicada para reducir el desplazamiento.",
+            ),
+        ),
     )
 )
 
