@@ -6,7 +6,7 @@ from pathlib import Path
 from tkinter import messagebox
 
 from . import __version__
-from .git_updater import GitUpdateInfo, GitUpdateResult, apply_git_update, check_git_update
+from .git_updater import GitUpdateInfo, GitUpdateResult, apply_git_update, check_git_update, is_network_error_text
 from .update_checker import UpdateInfo, check_for_update
 from .updater import download_release_asset
 
@@ -34,12 +34,24 @@ class UpdateMixin:
                 info = check_for_update(__version__)
                 self._productivity_events.put(("update_info", info, manual, git_info.detail))
             except Exception as exc:
-                self._productivity_events.put(("productivity_error", "Actualización", exc))
+                self._productivity_events.put(("update_check_error", exc, manual, git_info.detail))
 
         name = "Audio2TextManualUpdate" if manual else "Audio2TextUpdateCheck"
         threading.Thread(target=worker, daemon=True, name=name).start()
 
     def _productivity_event_git_update_info(self, info: GitUpdateInfo, manual: bool) -> None:
+        if info.check_failed:
+            self.productivity_hint.configure(text=info.detail)
+            if manual:
+                title = "Sin conexión con GitHub" if info.network_error else "No se pudo comprobar la actualización"
+                messagebox.showwarning(
+                    title,
+                    info.detail
+                    + "\n\nAudio2Text puede seguir transcribiendo archivos sin conexión. "
+                    "Vuelve a intentarlo cuando GitHub esté disponible.",
+                )
+            return
+
         if info.available:
             if info.dirty:
                 self.productivity_hint.configure(text="Hay una actualización, pero existen cambios locales.")
@@ -81,7 +93,7 @@ class UpdateMixin:
                 )
                 self._productivity_events.put(("git_update_complete", result))
             except Exception as exc:
-                self._productivity_events.put(("productivity_error", "Actualización mediante Git", exc))
+                self._productivity_events.put(("update_check_error", exc, True, "Actualización mediante Git"))
 
         threading.Thread(target=worker, daemon=True, name="Audio2TextGitUpdater").start()
 
@@ -101,6 +113,38 @@ class UpdateMixin:
         )
         if close_now:
             self.destroy()
+
+    def _productivity_event_update_check_error(
+        self,
+        exc: Exception,
+        manual: bool,
+        git_detail: str = "",
+    ) -> None:
+        self._updating = False
+        if hasattr(self, "update_button"):
+            self.update_button.configure(state="normal")
+
+        technical = f"{type(exc).__name__}: {exc}"
+        network_error = is_network_error_text(technical)
+        if network_error:
+            title = "Sin conexión con GitHub"
+            detail = (
+                "Audio2Text no pudo conectarse con GitHub. Revisa la conexión a internet, "
+                "el DNS, el firewall o la red del equipo y vuelve a intentarlo."
+            )
+        else:
+            title = "No se pudo comprobar la actualización"
+            detail = "La comprobación de actualizaciones no pudo completarse en este momento."
+
+        self.productivity_hint.configure(text=detail)
+        if manual:
+            extra = f"\n\nMétodo Git no disponible: {git_detail}" if git_detail else ""
+            messagebox.showwarning(
+                title,
+                detail
+                + extra
+                + "\n\nLa transcripción local sigue disponible y no necesita conexión a GitHub.",
+            )
 
     def _productivity_event_update_info(
         self,
@@ -149,7 +193,7 @@ class UpdateMixin:
                 )
                 self._productivity_events.put(("update_complete", str(path)))
             except Exception as exc:
-                self._productivity_events.put(("productivity_error", "Descarga de actualización", exc))
+                self._productivity_events.put(("update_check_error", exc, True, "Descarga de actualización"))
 
         threading.Thread(target=worker, daemon=True, name="Audio2TextReleaseDownloader").start()
 
