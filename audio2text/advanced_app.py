@@ -4,10 +4,12 @@ from .advanced_panel_mixin import AdvancedPanelMixin
 from .advanced_processing_mixin import AdvancedProcessingMixin
 from .cuda_fallback_notice_mixin import CudaFallbackNoticeMixin
 from .productivity_app import Audio2TextApp as ProductivityAudio2TextApp
+from .sequential_audio_fix_mixin import SequentialAudioFixMixin
 from .version_notice_mixin import VersionNoticeMixin
 
 
 class Audio2TextApp(
+    SequentialAudioFixMixin,
     VersionNoticeMixin,
     CudaFallbackNoticeMixin,
     AdvancedPanelMixin,
