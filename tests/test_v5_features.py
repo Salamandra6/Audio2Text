@@ -9,6 +9,7 @@ from unittest.mock import patch
 from audio2text import state_store
 from audio2text.changelog import changes_between, format_changes
 from audio2text.exporters import TranscriptSegment, TranscriptionResult
+from audio2text.git_updater import is_network_error_text
 from audio2text.speaker_diarization import SpeakerTurn, assign_person_labels
 from audio2text.stable_app import Audio2TextApp as StableAudio2TextApp
 from audio2text.transcript_editor import editor_text, result_from_editor_text
@@ -105,6 +106,11 @@ class VersionFiveTests(unittest.TestCase):
                 self.assertIsNone(
                     state_store.find_processed(source, output_dir=destination, formats=["txt"])
                 )
+
+    def test_update_checker_recognizes_dns_failures(self) -> None:
+        self.assertTrue(is_network_error_text("Failed to resolve api.github.com: getaddrinfo failed"))
+        self.assertTrue(is_network_error_text("fatal: unable to access: Could not resolve host"))
+        self.assertFalse(is_network_error_text("La rama local contiene commits propios"))
 
 
 if __name__ == "__main__":
