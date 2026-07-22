@@ -9,6 +9,19 @@ from typing import Callable
 
 StatusCallback = Callable[[str], None]
 
+NETWORK_ERROR_MARKERS = (
+    "could not resolve host",
+    "couldn't resolve host",
+    "failed to resolve",
+    "name resolution",
+    "getaddrinfo",
+    "network is unreachable",
+    "failed to connect",
+    "connection timed out",
+    "connection reset",
+    "temporary failure in name resolution",
+)
+
 
 @dataclass(slots=True)
 class GitUpdateInfo:
@@ -20,6 +33,8 @@ class GitUpdateInfo:
     behind_count: int = 0
     dirty: bool = False
     diverged: bool = False
+    check_failed: bool = False
+    network_error: bool = False
     detail: str = ""
 
 
@@ -69,6 +84,22 @@ def _sha(root: Path, ref: str) -> str:
 def _is_ancestor(root: Path, older: str, newer: str) -> bool:
     result = _git(root, "merge-base", "--is-ancestor", older, newer, check=False)
     return result.returncode == 0
+
+
+def _exception_detail(exc: BaseException) -> str:
+    pieces = [str(exc)]
+    if isinstance(exc, subprocess.CalledProcessError):
+        if exc.stderr:
+            pieces.append(str(exc.stderr))
+        if exc.stdout:
+            pieces.append(str(exc.stdout))
+    text = " ".join(piece.strip() for piece in pieces if piece and piece.strip())
+    return " ".join(text.split())[:500]
+
+
+def is_network_error_text(value: str) -> bool:
+    text = value.lower()
+    return any(marker in text for marker in NETWORK_ERROR_MARKERS)
 
 
 def check_git_update(status: StatusCallback | None = None) -> GitUpdateInfo:
@@ -127,7 +158,22 @@ def check_git_update(status: StatusCallback | None = None) -> GitUpdateInfo:
             detail=detail,
         )
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
-        return GitUpdateInfo(False, root=root, detail=f"No se pudo consultar Git: {type(exc).__name__}: {exc}")
+        technical = _exception_detail(exc)
+        network_error = is_network_error_text(technical)
+        detail = (
+            "No se pudo conectar con GitHub. Revisa la conexión a internet o la resolución DNS."
+            if network_error
+            else f"No se pudo consultar Git: {technical or type(exc).__name__}."
+        )
+        # La instalación sigue siendo compatible con Git. Un fallo temporal de fetch
+        # no debe enviarla al comprobador alternativo de Releases ni mostrar dos errores.
+        return GitUpdateInfo(
+            True,
+            root=root,
+            check_failed=True,
+            network_error=network_error,
+            detail=detail,
+        )
 
 
 def apply_git_update(
@@ -136,6 +182,8 @@ def apply_git_update(
 ) -> GitUpdateResult:
     if not info.supported or info.root is None:
         raise RuntimeError(info.detail or "Esta instalación no admite actualización mediante Git.")
+    if info.check_failed:
+        raise RuntimeError(info.detail or "No se pudo comprobar la actualización.")
     if info.dirty:
         raise RuntimeError(
             "Hay archivos modificados localmente. Guárdalos o revierte los cambios antes de actualizar."
