@@ -88,6 +88,15 @@ CHANGELOG: "OrderedDict[str, tuple[str, ...]]" = OrderedDict(
                 "Los estados de progreso permanecen asociados a la fila correcta al procesar una selección parcial.",
             ),
         ),
+        (
+            "0.5.7",
+            (
+                "Los fallos de conexión, DNS o firewall al consultar GitHub muestran un aviso breve y comprensible.",
+                "La comprobación automática de actualizaciones falla silenciosamente sin interrumpir la transcripción.",
+                "Una instalación Git con un fallo temporal de red ya no intenta un segundo método de actualización.",
+                "El actualizador distingue entre una instalación incompatible y una conexión temporalmente no disponible.",
+            ),
+        ),
     )
 )
 
